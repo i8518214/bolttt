@@ -13,9 +13,18 @@ function nightsBetween(checkIn: string, checkOut: string) {
   return Math.round(diff / (1000 * 60 * 60 * 24))
 }
 
+function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+  return aStart < bEnd && aEnd > bStart
+}
+
+function formatRange(start: string, end: string) {
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
+  return `${new Date(start).toLocaleDateString(undefined, opts)} – ${new Date(end).toLocaleDateString(undefined, opts)}`
+}
+
 export function BookingForm({ apartment }: { apartment: Apartment }) {
   const navigate = useNavigate()
-  const { addBooking } = useBookings()
+  const { bookings, addBooking } = useBookings()
 
   const today = new Date().toISOString().slice(0, 10)
 
@@ -25,6 +34,12 @@ export function BookingForm({ apartment }: { apartment: Apartment }) {
   const [checkOut, setCheckOut] = useState('')
   const [guests, setGuests] = useState('2')
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const unavailableRanges = useMemo(() => {
+    return bookings
+      .filter((b) => b.apartmentId === apartment.id && b.status !== 'cancelled' && b.checkOut > today)
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn))
+  }, [bookings, apartment.id, today])
 
   const nights = useMemo(() => {
     if (!checkIn || !checkOut) return 0
@@ -43,8 +58,22 @@ export function BookingForm({ apartment }: { apartment: Apartment }) {
     }
     if (!checkIn) nextErrors.checkIn = 'Check-in date is required.'
     if (!checkOut) nextErrors.checkOut = 'Check-out date is required.'
+    if (checkIn && checkIn < today) {
+      nextErrors.checkIn = 'Check-in date cannot be in the past.'
+    }
+    if (checkOut && checkOut < today) {
+      nextErrors.checkOut = 'Check-out date cannot be in the past.'
+    }
     if (checkIn && checkOut && checkOut <= checkIn) {
       nextErrors.checkOut = 'Check-out must be after check-in.'
+    }
+    if (
+      checkIn &&
+      checkOut &&
+      checkOut > checkIn &&
+      unavailableRanges.some((b) => rangesOverlap(checkIn, checkOut, b.checkIn, b.checkOut))
+    ) {
+      nextErrors.availability = 'These dates are already booked. Please choose different dates.'
     }
     if (Number(guests) > apartment.maxGuests) {
       nextErrors.guests = `This property sleeps up to ${apartment.maxGuests} guests.`
@@ -83,6 +112,17 @@ export function BookingForm({ apartment }: { apartment: Apartment }) {
         <p className="text-sm text-slate-500">Sleeps up to {apartment.maxGuests}</p>
       </div>
 
+      {unavailableRanges.length > 0 && (
+        <div className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+          <p className="font-medium">Already booked</p>
+          <ul className="mt-1 space-y-0.5">
+            {unavailableRanges.map((b) => (
+              <li key={b.id}>{formatRange(b.checkIn, b.checkOut)}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <Input
         label="Full name"
         placeholder="Jane Doe"
@@ -117,6 +157,7 @@ export function BookingForm({ apartment }: { apartment: Apartment }) {
           error={errors.checkOut}
         />
       </div>
+      {errors.availability && <p className="text-xs text-red-600">{errors.availability}</p>}
 
       <Select label="Guests" value={guests} onChange={(e) => setGuests(e.target.value)}>
         {Array.from({ length: apartment.maxGuests }, (_, i) => i + 1).map((n) => (

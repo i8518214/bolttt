@@ -1,22 +1,47 @@
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Input } from '../ui/Input'
 import { Select } from '../ui/Select'
 import { Button } from '../ui/Button'
 
-export function SearchForm() {
+interface SearchFormProps {
+  requireDestination?: boolean
+  showGuests?: boolean
+}
+
+export function SearchForm({ requireDestination = true, showGuests = true }: SearchFormProps = {}) {
   const navigate = useNavigate()
-  const [destination, setDestination] = useState('')
-  const [checkIn, setCheckIn] = useState('')
-  const [checkOut, setCheckOut] = useState('')
-  const [guests, setGuests] = useState('2')
+  const [searchParams] = useSearchParams()
+  const today = new Date().toISOString().slice(0, 10)
+
+  const [destination, setDestination] = useState(() => searchParams.get('destination') ?? '')
+  const [checkIn, setCheckIn] = useState(() => searchParams.get('checkin') ?? '')
+  const [checkOut, setCheckOut] = useState(() => searchParams.get('checkout') ?? '')
+  const [guests, setGuests] = useState(() => searchParams.get('guests') ?? '2')
   const [error, setError] = useState('')
+  const paramsKey = searchParams.toString()
+
+  useEffect(() => {
+    setDestination(searchParams.get('destination') ?? '')
+    setCheckIn(searchParams.get('checkin') ?? '')
+    setCheckOut(searchParams.get('checkout') ?? '')
+    setGuests(searchParams.get('guests') ?? '2')
+    setError('')
+  }, [paramsKey])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
 
-    if (!destination.trim()) {
+    if (requireDestination && !destination.trim()) {
       setError('Please enter a destination.')
+      return
+    }
+    if (checkIn && checkIn < today) {
+      setError('Check-in date cannot be in the past.')
+      return
+    }
+    if (checkOut && checkOut < today) {
+      setError('Check-out date cannot be in the past.')
       return
     }
     if (checkIn && checkOut && checkOut <= checkIn) {
@@ -25,11 +50,20 @@ export function SearchForm() {
     }
     setError('')
 
-    const params = new URLSearchParams()
-    params.set('destination', destination.trim())
+    // Start from the current URL params so fields hidden on this variant
+    // (e.g. guests on the results page, where the filters sidebar owns it)
+    // are carried forward untouched instead of being silently reset.
+    const params = new URLSearchParams(searchParams)
+    if (destination.trim()) {
+      params.set('destination', destination.trim())
+    } else {
+      params.delete('destination')
+    }
     if (checkIn) params.set('checkin', checkIn)
+    else params.delete('checkin')
     if (checkOut) params.set('checkout', checkOut)
-    params.set('guests', guests)
+    else params.delete('checkout')
+    if (showGuests) params.set('guests', guests)
 
     navigate(`/search?${params.toString()}`)
   }
@@ -37,7 +71,10 @@ export function SearchForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid grid-cols-1 gap-3 rounded-2xl bg-white p-4 shadow-card-hover sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] lg:items-end lg:gap-3 lg:p-5"
+      noValidate
+      className={`grid grid-cols-1 gap-3 rounded-2xl bg-white p-4 shadow-card-hover sm:grid-cols-2 lg:items-end lg:gap-3 lg:p-5 ${
+        showGuests ? 'lg:grid-cols-[2fr_1fr_1fr_1fr_auto]' : 'lg:grid-cols-[2fr_1fr_1fr_auto]'
+      }`}
     >
       <Input
         label="Destination"
@@ -48,22 +85,26 @@ export function SearchForm() {
       <Input
         label="Check-in"
         type="date"
+        min={today}
         value={checkIn}
         onChange={(e) => setCheckIn(e.target.value)}
       />
       <Input
         label="Check-out"
         type="date"
+        min={checkIn || today}
         value={checkOut}
         onChange={(e) => setCheckOut(e.target.value)}
       />
-      <Select label="Guests" value={guests} onChange={(e) => setGuests(e.target.value)}>
-        {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
-          <option key={n} value={n}>
-            {n} {n === 1 ? 'guest' : 'guests'}
-          </option>
-        ))}
-      </Select>
+      {showGuests && (
+        <Select label="Guests" value={guests} onChange={(e) => setGuests(e.target.value)}>
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+            <option key={n} value={n}>
+              {n} {n === 1 ? 'guest' : 'guests'}
+            </option>
+          ))}
+        </Select>
+      )}
       <Button type="submit" size="lg" className="lg:h-[42px]">
         Search
       </Button>

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import type { Booking } from '../types'
+import type { Booking, BookingStatus } from '../types'
 import { seedBookings } from '../data/bookings'
 
 const STORAGE_KEY = 'stayfinder_bookings'
@@ -8,6 +8,8 @@ interface BookingsContextValue {
   bookings: Booking[]
   addBooking: (booking: Omit<Booking, 'id' | 'createdAt' | 'status'>) => Booking
   getBooking: (id: string) => Booking | undefined
+  updateBookingStatus: (id: string, status: BookingStatus) => void
+  deleteBooking: (id: string) => void
 }
 
 const BookingsContext = createContext<BookingsContextValue | undefined>(undefined)
@@ -49,8 +51,18 @@ export function BookingsProvider({ children }: { children: ReactNode }) {
     return bookings.find((b) => b.id === id)
   }
 
+  function updateBookingStatus(id: string, status: BookingStatus) {
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)))
+  }
+
+  function deleteBooking(id: string) {
+    setBookings((prev) => prev.filter((b) => b.id !== id))
+  }
+
   return (
-    <BookingsContext.Provider value={{ bookings, addBooking, getBooking }}>
+    <BookingsContext.Provider
+      value={{ bookings, addBooking, getBooking, updateBookingStatus, deleteBooking }}
+    >
       {children}
     </BookingsContext.Provider>
   )

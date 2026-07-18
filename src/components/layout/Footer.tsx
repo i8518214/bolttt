@@ -33,10 +33,10 @@ export function Footer() {
           <div>
             <h3 className="text-sm font-semibold uppercase tracking-wide text-white">Company</h3>
             <ul className="mt-4 space-y-2 text-sm">
-              <li><span className="hover:text-white">About us</span></li>
-              <li><span className="hover:text-white">Careers</span></li>
-              <li><span className="hover:text-white">Help center</span></li>
-              <li><span className="hover:text-white">Terms &amp; privacy</span></li>
+              <li>About us</li>
+              <li>Careers</li>
+              <li>Help center</li>
+              <li>Terms &amp; privacy</li>
             </ul>
           </div>
 
